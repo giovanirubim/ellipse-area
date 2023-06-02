@@ -7,8 +7,8 @@ const toRad = (deg) => deg*(PI/180);
 const toDeg = (rad) => rad*(180/PI);
 
 let theta = toRad(15);
-let e = 0.75;
-let h, p, i, iAng, o;
+let e = 0.85;
+let f, h, p, i, iAng, o, oAng, secAng;
 let viewH;
 let viewRadius, axesLen;
 
@@ -36,6 +36,13 @@ const calcCircleAng = ([ x, y ]) => {
 	return TAU - acos(x);
 };
 
+const updateSecAng = () => {
+	secAng = iAng - oAng;
+	if (secAng < 0) {
+		secAng += TAU;
+	}
+};
+
 const project = ([ x, y ]) => [ x*viewRadius, y*-viewRadius ];
 const scaleVec = ([ x, y ], s) => [ x*s, y*s ];
 const vecLen = ([ x, y ]) => sqrt(x*x + y*y);
@@ -43,7 +50,7 @@ const vecAdd = ([ ax, ay ], [ bx, by ]) => [ ax + bx, ay + by ];
 const drawAxes = () => {
 	const l = 10;
 
-	ctx.strokeStyle = '#0f0';
+	ctx.strokeStyle = '#2c7';
 	ctx.beginPath();
 	ctx.moveTo(0, axesLen);
 	ctx.lineTo(0, -axesLen);
@@ -52,7 +59,7 @@ const drawAxes = () => {
 	ctx.lineTo(l, l - axesLen);
 	ctx.stroke();
 
-	ctx.strokeStyle = '#f00';
+	ctx.strokeStyle = '#c43';
 	ctx.beginPath();
 	ctx.moveTo(-axesLen, 0);
 	ctx.lineTo(axesLen, 0);
@@ -66,7 +73,7 @@ const drawPoint = (point, label) => {
 	point = project(point);
 	ctx.fillStyle = '#fff';
 	ctx.beginPath();
-	ctx.arc(...point, 3, 0, TAU);
+	ctx.arc(...point, 2, 0, TAU);
 	ctx.fill();
 	if (!label) {
 		return;
@@ -84,11 +91,36 @@ const drawPoint = (point, label) => {
 	ctx.fillText(label, ...point);
 };
 
-const draArc = (radians, spaces) => {
+const drawArc = (radians, spaces, label) => {
+	const s = 5;
+	const l = 5;
+
 	ctx.strokeStyle = '#fff';
 	ctx.beginPath();
-	ctx.arc(0, 0, viewRadius + spaces*30, - radians, 0);
+	ctx.arc(0, 0, viewRadius + s*spaces, - radians, 0);
 	ctx.stroke();
+
+	if (!label) {
+		return;
+	}
+
+	const mid = radians/2;
+	const dir = [ cos(mid), -sin(mid) ];
+	const [ px, py ] = scaleVec(dir, viewRadius + s*spaces + l);
+
+	if (px >= 0) {
+		ctx.textAlign = 'left';
+	} else {
+		ctx.textAlign = 'right';
+	}
+	if (py >= 0) {
+		ctx.textBaseline = 'top';
+	} else {
+		ctx.textBaseline = 'bottom';
+	}
+	ctx.font = '14px arial';
+	ctx.fillStyle = '#fff';	
+	ctx.fillText(label, px, py);
 };
 
 const calcPointO = () => {
@@ -105,64 +137,110 @@ const calcPointO = () => {
 	return [ ix + t*dx, iy + t*dy ];
 };
 
-const render = () => {
-	const { width, height } = canvas;
+const drawLine = (a, b, dash = []) => {
+	a = project(a);
+	b = project(b);
+	ctx.strokeStyle = '#fff';
+	ctx.setLineDash(dash);
+	ctx.beginPath();
+	ctx.moveTo(...a);
+	ctx.lineTo(...b);
+	ctx.stroke();
+	ctx.setLineDash([]);
+};
 
+const moveToCorner = () => {
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	ctx.clearRect(0, 0, width, height);
+};
 
+const moveToLeft = () => {
+	const { width, height } = canvas;
 	ctx.setTransform(1, 0, 0, 1, width*0.25, height*0.5);
+};
 
-	ctx.fillStyle = '#369';
+const moveToRight = () => {
+	const { width, height } = canvas;
+	ctx.setTransform(1, 0, 0, 1, width*0.75, height*0.5);
+};
+
+const fillEllipse = () => {
+	ctx.fillStyle = '#345';
 	ctx.beginPath();
 	ctx.ellipse(0, 0, viewRadius, viewH, 0, 0, TAU);
 	ctx.fill();
-	drawAxes();
+};
 
-	const f = [-e, 0];
-
-	drawPoint(f, 'F');
-
-	p = calcEllipseAnglePoint();
-
-	ctx.strokeStyle = '#fff';
-	ctx.beginPath();
-	ctx.moveTo(-e*viewRadius, 0);
-	ctx.lineTo(...project(p));
-	ctx.stroke();
-
-	drawPoint(p, 'P');
-
-	ctx.setTransform(1, 0, 0, 1, width*0.75, height*0.5);
-	ctx.fillStyle = '#369';
+const fillCircle = () => {
+	ctx.fillStyle = '#345';
 	ctx.beginPath();
 	ctx.arc(0, 0, viewRadius, 0, TAU);
 	ctx.fill();
-	drawAxes();
+};
 
-	drawPoint([-e, 0], 'F');
+const fillEllipseOrbitArea = () => {
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+	ctx.beginPath();
+	ctx.lineTo(...project(f));
+	ctx.ellipse(0, 0, viewRadius, viewH, 0, TAU - iAng, TAU);
+	ctx.fill();
+};
+
+const fillCircleOrbitArea = () => {
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+	ctx.beginPath();
+	ctx.lineTo(...project(f));
+	ctx.arc(0, 0, viewRadius, TAU - iAng, TAU);
+	ctx.fill();
+};
+
+const fillCircleSegment = () => {
+	ctx.fillStyle = 'rgba(255, 192, 0, 0.1)';
+	ctx.beginPath();
+	ctx.arc(0, 0, viewRadius, - iAng, secAng - iAng);
+	ctx.fill();
+};
+
+const render = () => {
+	const { width, height } = canvas;
+
+	f = [-e, 0];
+	p = calcEllipseAnglePoint();
 
 	i = [...p];
 	i[1] /= h;
-
-	ctx.strokeStyle = '#fff';
-	ctx.beginPath();
-	ctx.moveTo(-e*viewRadius, 0);
-	ctx.lineTo(...project(i));
-	ctx.stroke();
-	drawPoint(i, 'I');
-
 	iAng = calcCircleAng(i);
-	draArc(iAng, 1);
 
 	o = calcPointO();
-	drawPoint(o, 'O');
+	oAng = calcCircleAng(o);
 
-	ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-	ctx.beginPath();
-	ctx.moveTo(...project(o));
-	ctx.lineTo(...project(f));
-	ctx.stroke();
+	updateSecAng();
+
+	moveToCorner();
+	ctx.clearRect(0, 0, width, height);
+
+	moveToLeft();
+	fillEllipse();
+	fillEllipseOrbitArea();
+	drawAxes();
+
+	drawPoint([ 0, 0 ], 'c');
+	drawLine(f, p);
+	drawPoint(p, 'p');
+	drawPoint(f, 'f');
+
+	moveToRight();
+	fillCircle();
+	fillCircleSegment();
+	fillCircleOrbitArea();
+
+	drawAxes();
+	drawPoint([ 0, 0 ], 'c');
+	drawPoint(f, 'f');
+	drawPoint(i, 'i');
+	drawPoint(o, 'o');
+	drawLine(i, o, [ 3, 4 ]);
+	drawArc(iAng, 1);
+	drawArc(oAng, 2);
 }
 
 const buildDOM = (tagName, attr) => {
