@@ -1,14 +1,14 @@
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 
-const { PI, sqrt, sin, cos, acos } = Math;
+const { PI, abs, min, max, sqrt, sin, cos, acos } = Math;
 const TAU = PI*2;
 const toRad = (deg) => deg*(PI/180);
 const toDeg = (rad) => rad*(180/PI);
 
-let theta = toRad(15);
-let e = 0.85;
-let f, h, p, i, iAng, o, oAng, secAng;
+let theta = toRad(30);
+let e = 0.5;
+let f, h, p, i, iAng, oAng, secIL, areaTri, areaSec, areaIFL, circCovArea;
 let viewH;
 let viewRadius, axesLen;
 
@@ -17,6 +17,13 @@ const updateVars = () => {
 	axesLen = canvas.width*0.24;
 	h = sqrt(1 - e*e);
 	viewH = h*viewRadius;
+};
+
+const calcTriangleArea = (a, b, c) => {
+	const aSqr = a*a;
+	const x = (aSqr - b*b + c*c)/(2*c);
+	const h = sqrt(aSqr - x*x);
+	return c*h/2;
 };
 
 const solveQuadratic = (a, b, c) => {
@@ -36,11 +43,57 @@ const calcCircleAng = ([ x, y ]) => {
 	return TAU - acos(x);
 };
 
-const updateSecAng = () => {
-	secAng = iAng - oAng;
-	if (secAng < 0) {
-		secAng += TAU;
-	}
+const updateSecIL = () => {
+	secIL = abs(PI - iAng);
+};
+
+const updateAreaTri = () => {
+	const [ ix, iy ] = i;
+	const dx = ix + e;
+	const dy = iy;
+	const aSqr = dx*dx + dy*dy;
+	const a = sqrt(aSqr);
+	const b = e;
+	const c = 1;
+	areaTri = calcTriangleArea(a, b, c);
+};
+
+const updateAreaSec = () => {
+	areaSec = secIL/2;
+};
+
+const updateAreaIFL = () => {
+	areaIFL = areaSec - areaTri;
+};
+
+const updateCircleCoveredArea = () => {
+	circCovArea = iAng > PI ? PI/2 + areaIFL : PI/2 - areaIFL;
+};
+
+const shortEquation = (angle, e) => {
+	const a = e*e;
+	const b = sqrt(1 - a);
+	const c = cos(angle);
+	const d = sin(angle);
+	const f = c*c + d*d/(b*b);
+	const g = -2*c*e;
+	const h = (sqrt(g*g - 4*f*(a - 1)) - g)/(2*f);
+	const i = c*h - e;
+	const j = d*h;
+	const k = i + e;
+	const l = j/b;
+	const m = k*k + l*l;
+	const n = (m - a + 1)/2;
+	const o = abs(PI - (j >= 0 ? acos(i) : TAU - acos(i)))/2 - sqrt(m - n*n)/2;
+	return j >= 0 ? 0.5 - o/PI : 0.5 + o/PI;
+};
+
+const infoDiv = document.querySelector('.info');
+const addInfo = (label, value) => {
+	infoDiv.innerText += label + ': ' + Number(value.toPrecision(6)) + '\n';
+};
+const clearInfo = () => {
+	infoDiv.innerHTML = '';
 };
 
 const project = ([ x, y ]) => [ x*viewRadius, y*-viewRadius ];
@@ -87,55 +140,32 @@ const drawPoint = (point, label) => {
 	}
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
-	ctx.font = '14px arial';
+	ctx.font = '14px monospace';
 	ctx.fillText(label, ...point);
 };
 
-const drawArc = (radians, spaces, label) => {
-	const s = 5;
-	const l = 5;
+const drawArc = (radians, spaces) => {
+	const s = 15;
 
-	ctx.strokeStyle = '#fff';
+	ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
 	ctx.beginPath();
 	ctx.arc(0, 0, viewRadius + s*spaces, - radians, 0);
 	ctx.stroke();
-
-	if (!label) {
-		return;
-	}
-
-	const mid = radians/2;
-	const dir = [ cos(mid), -sin(mid) ];
-	const [ px, py ] = scaleVec(dir, viewRadius + s*spaces + l);
-
-	if (px >= 0) {
-		ctx.textAlign = 'left';
-	} else {
-		ctx.textAlign = 'right';
-	}
-	if (py >= 0) {
-		ctx.textBaseline = 'top';
-	} else {
-		ctx.textBaseline = 'bottom';
-	}
-	ctx.font = '14px arial';
-	ctx.fillStyle = '#fff';	
-	ctx.fillText(label, px, py);
 };
 
-const calcPointO = () => {
-	const [ ix, iy ] = i;
-	const fx = -e;
-	const fy = 0;
-	const dx = fx - ix;
-	const dy = fy - iy;
-	const t = solveQuadratic(
-		dx*dx + dy*dy,
-		2*(ix*dx + iy*dy),
-		ix*ix + iy*iy - 1,
-	);
-	return [ ix + t*dx, iy + t*dy ];
-};
+// const calcPointO = () => {
+// 	const [ ix, iy ] = i;
+// 	const fx = -e;
+// 	const fy = 0;
+// 	const dx = fx - ix;
+// 	const dy = fy - iy;
+// 	const t = solveQuadratic(
+// 		dx*dx + dy*dy,
+// 		2*(ix*dx + iy*dy),
+// 		ix*ix + iy*iy - 1,
+// 	);
+// 	return [ ix + t*dx, iy + t*dy ];
+// };
 
 const drawLine = (a, b, dash = []) => {
 	a = project(a);
@@ -193,10 +223,13 @@ const fillCircleOrbitArea = () => {
 	ctx.fill();
 };
 
-const fillCircleSegment = () => {
-	ctx.fillStyle = 'rgba(255, 192, 0, 0.1)';
+const fillSector = () => {
+	ctx.fillStyle = 'rgba(0, 255, 127, 0.2)';
+	let a = min(iAng, PI);
+	let b = max(iAng, PI);
 	ctx.beginPath();
-	ctx.arc(0, 0, viewRadius, - iAng, secAng - iAng);
+	ctx.moveTo(0, 0);
+	ctx.arc(0, 0, viewRadius, TAU - b, TAU - a);
 	ctx.fill();
 };
 
@@ -210,10 +243,11 @@ const render = () => {
 	i[1] /= h;
 	iAng = calcCircleAng(i);
 
-	o = calcPointO();
-	oAng = calcCircleAng(o);
-
-	updateSecAng();
+	updateSecIL();
+	updateAreaTri();
+	updateAreaSec();
+	updateAreaIFL();
+	updateCircleCoveredArea();
 
 	moveToCorner();
 	ctx.clearRect(0, 0, width, height);
@@ -230,18 +264,30 @@ const render = () => {
 
 	moveToRight();
 	fillCircle();
-	fillCircleSegment();
 	fillCircleOrbitArea();
+	fillSector();
 
 	drawAxes();
 	drawPoint([ 0, 0 ], 'c');
 	drawPoint(f, 'f');
 	drawPoint(i, 'i');
-	drawPoint(o, 'o');
-	drawLine(i, o, [ 3, 4 ]);
+	drawPoint([ -1, 0 ], 'l');
+	drawLine(i, f);
 	drawArc(iAng, 1);
 	drawArc(oAng, 2);
-}
+};
+
+const updateInfo = () => {
+	clearInfo();
+	addInfo('i angle', toDeg(iAng));
+	addInfo('i-l sector', toDeg(secIL));
+	addInfo('triangle area', areaTri);
+	addInfo('sector area', areaSec);
+	addInfo('i-f-l area', areaIFL);
+	addInfo('circle covered area', circCovArea);
+	addInfo('rel. covered area', circCovArea/PI);
+	addInfo('short function', shortEquation(theta, e));
+};
 
 const buildDOM = (tagName, attr) => {
 	const dom = document.createElement(tagName);
@@ -250,6 +296,8 @@ const buildDOM = (tagName, attr) => {
 	}
 	return dom;
 };
+
+const inputs = document.querySelector('.inputs');
 
 const addRange = ({ label, init, min, max, onchange }) => {
 	const input = buildDOM('input', {
@@ -264,21 +312,23 @@ const addRange = ({ label, init, min, max, onchange }) => {
 	labelDOM.innerHTML += ': <span class="val"></span>';
 	const spanVal = labelDOM.querySelector('span');
 	spanVal.innerText = init;
-	const div = document.createElement('div');
+	const div = buildDOM('div', { class: 'input-range' });
 	div.appendChild(labelDOM);
 	div.appendChild(input);
-	document.body.appendChild(div);
+	inputs.appendChild(div);
 	input.oninput = () => {
 		const val = Number((input.value*(max - min) + min).toPrecision(8));
 		onchange(val);
 		spanVal.innerText = val;
 		updateVars();
 		render();
+		updateInfo();
 	};
 };
 
 updateVars();
 render();
+updateInfo();
 
 addRange({
 	label: 'Theta',

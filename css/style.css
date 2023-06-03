@@ -1,6 +1,7 @@
 body {
+	font-family: monospace;
 	background-color: #1c1c1c;
-	font-family: Arial, Helvetica, sans-serif;
+	color: #aaa;
 }
 canvas {
 	background-color: #222;
@@ -9,9 +10,13 @@ input {
 	width: 1000px;
 }
 .label {
-	color: #aaa;
 	font-weight: bold;
 }
-div {
+.input-range {
 	margin-top: 10px;
+}
+.info {
+	background-color: #111;
+	padding: 10px;
+	width: 1000px;
 }
