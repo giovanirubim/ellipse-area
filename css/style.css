@@ -1,4 +1,6 @@
 body {
+	width: 1025px;
+	margin: 20px auto;
 	font-family: monospace;
 	background-color: #1c1c1c;
 	color: #aaa;
